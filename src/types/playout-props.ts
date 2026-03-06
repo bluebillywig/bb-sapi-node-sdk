@@ -1,0 +1,32 @@
+export interface PlayoutProps {
+  name?: string;
+  label?: string;
+  status?: string;
+  centerButtonType?: string;
+  cornerRadius?: number;
+  responsiveSizing?: boolean;
+  width?: number;
+  height?: number;
+  maxWidth?: number;
+  autoHeight?: boolean;
+  aspectRatio?: string;
+  backgroundColor?: string;
+  foregroundColor?: string;
+  widgetColor?: string;
+  bgColor?: string;
+  logoId?: number;
+  logoAlign?: string;
+  logoClickUrl?: string;
+  controlBar?: boolean;
+  timeDisplay?: boolean;
+  timeLine?: boolean;
+  muteButton?: boolean;
+  volume?: boolean;
+  fullScreen?: boolean;
+  autoPlay?: boolean;
+  autoLoop?: boolean;
+  autoMute?: boolean;
+  title?: boolean;
+  fitmode?: string;
+  commercials?: unknown[];
+}

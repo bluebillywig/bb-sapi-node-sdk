@@ -1,0 +1,33 @@
+{
+  "name": "@bluebillywig/sapi-sdk",
+  "version": "1.0.0",
+  "description": "Blue Billywig Server API SDK for Node.js",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^1.6.1",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}
