@@ -4,7 +4,7 @@ import { EmptyAuthenticator } from '../../src/authentication/empty-authenticator
 import { createMockFetch } from '../helpers/mock-fetch.js';
 
 describe('Playout', () => {
-  it('should list playouts using /sapi/player', async () => {
+  it('should list playouts using /sapi/playout', async () => {
     const { fetch, calls } = createMockFetch([{ status: 200 }]);
     const sdk = new Sdk('my-publication', new EmptyAuthenticator(), { fetch });
 
@@ -14,7 +14,7 @@ describe('Playout', () => {
     expect(url.searchParams.get('limit')).toBe('10');
     expect(url.searchParams.get('offset')).toBe('5');
     expect(url.searchParams.get('sort')).toBe('createddate asc');
-    expect(url.pathname).toBe('/sapi/player');
+    expect(url.pathname).toBe('/sapi/playout');
     expect(calls[0].init?.method).toBe('GET');
   });
 
@@ -24,7 +24,7 @@ describe('Playout', () => {
 
     await sdk.playout.get(1);
 
-    expect(calls[0].url).toBe('https://my-publication.bbvms.com/sapi/player/1');
+    expect(calls[0].url).toBe('https://my-publication.bbvms.com/sapi/playout/1');
     expect(calls[0].init?.method).toBe('GET');
   });
 
@@ -35,7 +35,7 @@ describe('Playout', () => {
     const props = { name: 'My Playout' };
     await sdk.playout.create(props);
 
-    expect(calls[0].url).toBe('https://my-publication.bbvms.com/sapi/player');
+    expect(calls[0].url).toBe('https://my-publication.bbvms.com/sapi/playout');
     expect(calls[0].init?.method).toBe('PUT');
     expect(JSON.parse(calls[0].init?.body as string)).toEqual(props);
   });
@@ -47,7 +47,7 @@ describe('Playout', () => {
     const props = { name: 'My Updated Playout' };
     await sdk.playout.update(1, props);
 
-    expect(calls[0].url).toBe('https://my-publication.bbvms.com/sapi/player/1');
+    expect(calls[0].url).toBe('https://my-publication.bbvms.com/sapi/playout/1');
     expect(calls[0].init?.method).toBe('PUT');
     expect(JSON.parse(calls[0].init?.body as string)).toEqual(props);
   });
@@ -58,7 +58,7 @@ describe('Playout', () => {
 
     await sdk.playout.delete(1);
 
-    expect(calls[0].url).toBe('https://my-publication.bbvms.com/sapi/player/1');
+    expect(calls[0].url).toBe('https://my-publication.bbvms.com/sapi/playout/1');
     expect(calls[0].init?.method).toBe('DELETE');
   });
 });

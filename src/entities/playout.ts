@@ -10,24 +10,24 @@ import { buildQuery } from '../util/query-params.js';
 
 export class Playout extends Entity implements Listable, Gettable, Creatable<PlayoutProps>, Updatable<PlayoutProps>, Deletable {
   async list(limit: number = 15, offset: number = 0, sort: string = 'createddate desc'): Promise<SapiResponse> {
-    return this.sdk.sendRequest('GET', '/sapi/player', {
+    return this.sdk.sendRequest('GET', '/sapi/playout', {
       query: buildQuery({ limit, offset, sort }),
     });
   }
 
   async get(id: number | string): Promise<SapiResponse> {
-    return this.sdk.sendRequest('GET', `/sapi/player/${id}`);
+    return this.sdk.sendRequest('GET', `/sapi/playout/${id}`);
   }
 
   async create(props: PlayoutProps): Promise<SapiResponse> {
-    return this.sdk.sendRequest('PUT', '/sapi/player', { json: props });
+    return this.sdk.sendRequest('PUT', '/sapi/playout', { json: props });
   }
 
   async update(id: number | string, props: PlayoutProps): Promise<SapiResponse> {
-    return this.sdk.sendRequest('PUT', `/sapi/player/${id}`, { json: props });
+    return this.sdk.sendRequest('PUT', `/sapi/playout/${id}`, { json: props });
   }
 
   async delete(id: number | string): Promise<SapiResponse> {
-    return this.sdk.sendRequest('DELETE', `/sapi/player/${id}`);
+    return this.sdk.sendRequest('DELETE', `/sapi/playout/${id}`);
   }
 }
