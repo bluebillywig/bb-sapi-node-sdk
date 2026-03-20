@@ -21,6 +21,14 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bluebillywig/bb-sapi-node-sdk.git"
+  },
+  "homepage": "https://github.com/bluebillywig/bb-sapi-node-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/bluebillywig/bb-sapi-node-sdk/issues"
+  },
   "engines": {
     "node": ">=18"
   },
