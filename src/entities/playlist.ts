@@ -16,7 +16,7 @@ export class Playlist extends Entity implements Listable, Gettable, Creatable<Pl
   }
 
   async get(id: number | string): Promise<SapiResponse> {
-    return this.sdk.sendRequest('GET', `/sapi/playlist/${id}`);
+    return this.sdk.sendRequest('GET', `/sapi/playlist/${encodeURIComponent(id)}`);
   }
 
   async create(props: PlaylistProps): Promise<SapiResponse> {
@@ -24,10 +24,10 @@ export class Playlist extends Entity implements Listable, Gettable, Creatable<Pl
   }
 
   async update(id: number | string, props: PlaylistProps): Promise<SapiResponse> {
-    return this.sdk.sendRequest('PUT', `/sapi/playlist/${id}`, { json: props });
+    return this.sdk.sendRequest('PUT', `/sapi/playlist/${encodeURIComponent(id)}`, { json: props });
   }
 
   async delete(id: number | string): Promise<SapiResponse> {
-    return this.sdk.sendRequest('DELETE', `/sapi/playlist/${id}`);
+    return this.sdk.sendRequest('DELETE', `/sapi/playlist/${encodeURIComponent(id)}`);
   }
 }

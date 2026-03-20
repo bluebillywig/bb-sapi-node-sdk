@@ -16,7 +16,7 @@ export class Channel extends Entity implements Listable, Gettable, Creatable<Cha
   }
 
   async get(id: number | string): Promise<SapiResponse> {
-    return this.sdk.sendRequest('GET', `/sapi/channel/${id}`);
+    return this.sdk.sendRequest('GET', `/sapi/channel/${encodeURIComponent(id)}`);
   }
 
   async create(props: ChannelProps): Promise<SapiResponse> {
@@ -24,10 +24,10 @@ export class Channel extends Entity implements Listable, Gettable, Creatable<Cha
   }
 
   async update(id: number | string, props: ChannelProps): Promise<SapiResponse> {
-    return this.sdk.sendRequest('PUT', `/sapi/channel/${id}`, { json: props });
+    return this.sdk.sendRequest('PUT', `/sapi/channel/${encodeURIComponent(id)}`, { json: props });
   }
 
   async delete(id: number | string): Promise<SapiResponse> {
-    return this.sdk.sendRequest('DELETE', `/sapi/channel/${id}`);
+    return this.sdk.sendRequest('DELETE', `/sapi/channel/${encodeURIComponent(id)}`);
   }
 }

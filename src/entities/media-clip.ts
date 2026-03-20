@@ -78,7 +78,7 @@ export class MediaClip extends Entity implements Listable, Gettable, Creatable<M
     lang?: string | null,
     includeJobs: boolean = true,
   ): Promise<SapiResponse> {
-    return this.sdk.sendRequest('GET', `/sapi/mediaclip/${id}`, {
+    return this.sdk.sendRequest('GET', `/sapi/mediaclip/${encodeURIComponent(id)}`, {
       query: buildQuery({ includejobs: includeJobs, lang }),
     });
   }
@@ -100,14 +100,14 @@ export class MediaClip extends Entity implements Listable, Gettable, Creatable<M
     softSave: boolean = false,
     lang?: string | null,
   ): Promise<SapiResponse> {
-    return this.sdk.sendRequest('PUT', `/sapi/mediaclip/${id}`, {
+    return this.sdk.sendRequest('PUT', `/sapi/mediaclip/${encodeURIComponent(id)}`, {
       query: buildQuery({ softsave: softSave, lang }),
       json: props,
     });
   }
 
   async delete(id: number | string, purge: boolean = false): Promise<SapiResponse> {
-    return this.sdk.sendRequest('DELETE', `/sapi/mediaclip/${id}`, {
+    return this.sdk.sendRequest('DELETE', `/sapi/mediaclip/${encodeURIComponent(id)}`, {
       query: purge ? buildQuery({ purge }) : undefined,
     });
   }

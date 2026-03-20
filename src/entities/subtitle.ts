@@ -16,7 +16,7 @@ export class Subtitle extends Entity implements Listable, Gettable, Creatable<Su
   }
 
   async get(id: number | string): Promise<SapiResponse> {
-    return this.sdk.sendRequest('GET', `/sapi/subtitle/${id}`);
+    return this.sdk.sendRequest('GET', `/sapi/subtitle/${encodeURIComponent(id)}`);
   }
 
   async create(props: SubtitleProps): Promise<SapiResponse> {
@@ -24,10 +24,10 @@ export class Subtitle extends Entity implements Listable, Gettable, Creatable<Su
   }
 
   async update(id: number | string, props: SubtitleProps): Promise<SapiResponse> {
-    return this.sdk.sendRequest('PUT', `/sapi/subtitle/${id}`, { json: props });
+    return this.sdk.sendRequest('PUT', `/sapi/subtitle/${encodeURIComponent(id)}`, { json: props });
   }
 
   async delete(id: number | string): Promise<SapiResponse> {
-    return this.sdk.sendRequest('DELETE', `/sapi/subtitle/${id}`);
+    return this.sdk.sendRequest('DELETE', `/sapi/subtitle/${encodeURIComponent(id)}`);
   }
 }

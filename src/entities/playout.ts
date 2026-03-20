@@ -16,7 +16,7 @@ export class Playout extends Entity implements Listable, Gettable, Creatable<Pla
   }
 
   async get(id: number | string): Promise<SapiResponse> {
-    return this.sdk.sendRequest('GET', `/sapi/playout/${id}`);
+    return this.sdk.sendRequest('GET', `/sapi/playout/${encodeURIComponent(id)}`);
   }
 
   async create(props: PlayoutProps): Promise<SapiResponse> {
@@ -24,10 +24,10 @@ export class Playout extends Entity implements Listable, Gettable, Creatable<Pla
   }
 
   async update(id: number | string, props: PlayoutProps): Promise<SapiResponse> {
-    return this.sdk.sendRequest('PUT', `/sapi/playout/${id}`, { json: props });
+    return this.sdk.sendRequest('PUT', `/sapi/playout/${encodeURIComponent(id)}`, { json: props });
   }
 
   async delete(id: number | string): Promise<SapiResponse> {
-    return this.sdk.sendRequest('DELETE', `/sapi/playout/${id}`);
+    return this.sdk.sendRequest('DELETE', `/sapi/playout/${encodeURIComponent(id)}`);
   }
 }
