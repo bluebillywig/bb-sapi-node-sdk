@@ -3,14 +3,14 @@ import { createHmac } from 'node:crypto';
 /**
  * Generates a full HMAC-SHA1 HOTP token (40-char hex) for a given counter.
  * Unlike standard HOTP which truncates to 6-8 digits, this returns the full digest.
- * @param key - The shared secret key (ASCII).
+ * @param key - The shared secret key.
  * @param counter - The counter value.
  */
 export function generateHotpByCounter(key: string, counter: number): string {
   const counterBuffer = Buffer.alloc(8);
   counterBuffer.writeBigUInt64BE(BigInt(counter));
 
-  return createHmac('sha1', Buffer.from(key, 'ascii'))
+  return createHmac('sha1', Buffer.from(key, 'utf8'))
     .update(counterBuffer)
     .digest('hex');
 }
