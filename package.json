@@ -1,5 +1,5 @@
 {
-  "name": "@bluebillywig/sapi-sdk",
+  "name": "@bluebillywig/bb-sapi-node-sdk",
   "version": "1.0.0",
   "description": "Blue Billywig Server API SDK for Node.js",
   "type": "module",

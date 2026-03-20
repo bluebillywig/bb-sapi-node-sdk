@@ -10,13 +10,13 @@ This Node.js SDK provides abstractions to interact with the Blue Billywig Server
 ## Installation
 
 ```bash
-npm install @bluebillywig/sapi-sdk
+npm install @bluebillywig/bb-sapi-node-sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { Sdk } from '@bluebillywig/sapi-sdk';
+import { Sdk } from '@bluebillywig/bb-sapi-node-sdk';
 
 const sdk = Sdk.withRPCTokenAuthentication(
   'my-publication',
@@ -39,7 +39,7 @@ The SDK uses HOTP-based RPC token authentication. You need a **token ID** and **
 const sdk = Sdk.withRPCTokenAuthentication('my-publication', tokenId, sharedSecret);
 
 // Or provide a custom authenticator
-import { Sdk, RPCTokenAuthenticator } from '@bluebillywig/sapi-sdk';
+import { Sdk, RPCTokenAuthenticator } from '@bluebillywig/bb-sapi-node-sdk';
 
 const authenticator = new RPCTokenAuthenticator(tokenId, sharedSecret);
 const sdk = new Sdk('my-publication', authenticator);
@@ -161,7 +161,7 @@ import {
   HTTPRequestException,
   HTTPClientErrorException,
   HTTPServerErrorException,
-} from '@bluebillywig/sapi-sdk';
+} from '@bluebillywig/bb-sapi-node-sdk';
 
 try {
   const response = await sdk.mediaclip.get(999);
