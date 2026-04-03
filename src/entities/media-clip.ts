@@ -179,9 +179,13 @@ export class MediaClip extends Entity implements Listable, Gettable, Creatable<M
     try {
       SapiResponse.assertAllOk(responses);
     } catch (e) {
-      const abortResponse = await this.abortUpload(uploadData.key, uploadData.uploadId);
-      abortResponse.assertOk();
-      throw e as HTTPRequestException;
+      try {
+        const abortResponse = await this.abortUpload(uploadData.key, uploadData.uploadId);
+        abortResponse.assertOk();
+      } catch {
+        // Abort failed; swallow to preserve original error
+      }
+      throw e;
     }
 
     const parts: Array<{ ETag: string; PartNumber: string }> = [];

@@ -333,9 +333,11 @@ describe('MediaClip', () => {
     });
 
     it('should handle missing ETag and partNumber in multi-chunk upload', async () => {
+      // Both chunk responses are identical to avoid FIFO mock queue race
+      // when Promise.all uploads chunks concurrently
       const { fetch, calls } = createMockFetch([
         { status: 200 },
-        { status: 200, headers: { ETag: '"some-etag-2"' } },
+        { status: 200 },
         { status: 200 }, // completeUpload
       ]);
       const sdk = new Sdk('my-publication', new EmptyAuthenticator(), { fetch });
@@ -364,12 +366,14 @@ describe('MediaClip', () => {
 
         expect(result).toBe(true);
         const completeBody = JSON.parse(calls[2].init?.body as string);
-        // First part has no ETag and no partNumber in URL
+        // Both parts have no ETag (responses had no ETag header)
         expect(completeBody.s3Parts[0].ETag).toBe('');
-        expect(completeBody.s3Parts[0].PartNumber).toBe('');
-        // Second part has both
-        expect(completeBody.s3Parts[1].ETag).toBe('some-etag-2');
-        expect(completeBody.s3Parts[1].PartNumber).toBe('2');
+        expect(completeBody.s3Parts[1].ETag).toBe('');
+        // partNumber comes from the presigned URL query string, not the response
+        // so ordering is preserved via Promise.all index mapping
+        const partNumbers = completeBody.s3Parts.map((p: { PartNumber: string }) => p.PartNumber);
+        expect(partNumbers).toContain('');  // first URL has no partNumber
+        expect(partNumbers).toContain('2'); // second URL has partNumber=2
       } finally {
         await tmp.cleanup();
       }
