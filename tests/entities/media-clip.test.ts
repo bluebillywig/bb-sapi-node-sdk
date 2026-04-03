@@ -430,6 +430,48 @@ describe('MediaClip', () => {
       }
     });
 
+    it('should still throw original error when abort also fails', async () => {
+      const { fetch } = createMockFetch([
+        { status: 200, headers: { ETag: '"some-etag-1"' } },
+        { status: 200, headers: { ETag: '"some-etag-2"' } },
+        { status: 500, statusText: 'Internal Server Error' }, // chunk 3 fails
+        { status: 500, statusText: 'Internal Server Error' }, // abort also fails
+      ]);
+      const sdk = new Sdk('my-publication', new EmptyAuthenticator(), { fetch });
+
+      const tmp = makeTempFile();
+      await writeFile(tmp.path, Buffer.alloc(30, 0x43));
+
+      try {
+        await expect(
+          sdk.mediaclip.executeUpload(tmp.path, {
+            key: '/prefix/blank.mp4',
+            uploadId: '12345',
+            chunks: 3,
+            presignedUrls: [
+              {
+                presignedUrl: 'https://s3.example.com/presigned-url/1?partNumber=1',
+                chunkSize: 10,
+                offset: 0,
+              },
+              {
+                presignedUrl: 'https://s3.example.com/presigned-url/2?partNumber=2',
+                chunkSize: 10,
+                offset: 10,
+              },
+              {
+                presignedUrl: 'https://s3.example.com/presigned-url/3?partNumber=3',
+                chunkSize: 10,
+                offset: 20,
+              },
+            ],
+          }),
+        ).rejects.toThrow(HTTPServerErrorException);
+      } finally {
+        await tmp.cleanup();
+      }
+    });
+
     it('should throw for invalid file path', async () => {
       const { fetch } = createMockFetch([]);
       const sdk = new Sdk('my-publication', new EmptyAuthenticator(), { fetch });
