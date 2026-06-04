@@ -111,3 +111,105 @@ describe('Sdk', () => {
     expect(url.searchParams.get('offset')).toBe('0');
   });
 });
+
+describe('Sdk request hardening (18134)', () => {
+  const S3_URL = 'https://my-bucket.s3.amazonaws.com/upload?X-Amz-Signature=abc';
+
+  describe('auth scoping (credential leak)', () => {
+    it('does NOT send the rpctoken to a cross-origin (S3) URL', async () => {
+      const { fetch, calls } = createMockFetch([{ status: 200 }]);
+      const sdk = Sdk.withRPCTokenAuthentication('my-publication', 1, 'secret', { fetch });
+
+      await sdk.sendRequest('PUT', S3_URL);
+
+      const headers = calls[0].init?.headers as Record<string, string>;
+      expect(headers.rpctoken).toBeUndefined();
+    });
+
+    it('still sends the rpctoken to same-origin SAPI requests (relative and absolute)', async () => {
+      const { fetch, calls } = createMockFetch([{ status: 200 }, { status: 200 }]);
+      const sdk = Sdk.withRPCTokenAuthentication('my-publication', 1, 'secret', { fetch });
+
+      await sdk.sendRequest('GET', '/sapi/mediaclip');
+      await sdk.sendRequest('GET', 'https://my-publication.bbvms.com/sapi/mediaclip');
+
+      expect((calls[0].init?.headers as Record<string, string>).rpctoken).toMatch(/^1-/);
+      expect((calls[1].init?.headers as Record<string, string>).rpctoken).toMatch(/^1-/);
+    });
+
+    it('skipAuth suppresses auth even on a same-origin request', async () => {
+      const { fetch, calls } = createMockFetch([{ status: 200 }]);
+      const sdk = Sdk.withRPCTokenAuthentication('my-publication', 1, 'secret', { fetch });
+
+      await sdk.sendRequest('GET', '/sapi/mediaclip', { skipAuth: true });
+
+      expect((calls[0].init?.headers as Record<string, string>).rpctoken).toBeUndefined();
+    });
+  });
+
+  describe('streaming body', () => {
+    it("sets duplex: 'half' when the body is a ReadableStream", async () => {
+      const { fetch, calls } = createMockFetch([{ status: 200 }]);
+      const sdk = new Sdk('my-publication', new EmptyAuthenticator(), { fetch });
+      const body = new ReadableStream();
+
+      await sdk.sendRequest('PUT', S3_URL, { body });
+
+      expect((calls[0].init as RequestInit & { duplex?: string }).duplex).toBe('half');
+    });
+
+    it('does not set duplex for a string/JSON body', async () => {
+      const { fetch, calls } = createMockFetch([{ status: 200 }]);
+      const sdk = new Sdk('my-publication', new EmptyAuthenticator(), { fetch });
+
+      await sdk.sendRequest('PUT', '/sapi/mediaclip', { json: { a: 1 } });
+
+      expect((calls[0].init as RequestInit & { duplex?: string }).duplex).toBeUndefined();
+    });
+  });
+
+  describe('timeout', () => {
+    it('attaches an abort signal by default', async () => {
+      const { fetch, calls } = createMockFetch([{ status: 200 }]);
+      const sdk = new Sdk('my-publication', new EmptyAuthenticator(), { fetch });
+
+      await sdk.sendRequest('GET', '/sapi/mediaclip');
+
+      expect(calls[0].init?.signal).toBeInstanceOf(AbortSignal);
+    });
+
+    it('omits the signal when timeoutMs is 0 (streaming uploads)', async () => {
+      const { fetch, calls } = createMockFetch([{ status: 200 }]);
+      const sdk = new Sdk('my-publication', new EmptyAuthenticator(), { fetch });
+
+      await sdk.sendRequest('PUT', S3_URL, { timeoutMs: 0 });
+
+      expect(calls[0].init?.signal).toBeUndefined();
+    });
+  });
+
+  describe('transport errors are typed', () => {
+    it('wraps a network failure in HTTPConnectionException (preserving cause)', async () => {
+      const cause = new TypeError('fetch failed');
+      const sdk = new Sdk('my-publication', new EmptyAuthenticator(), {
+        fetch: (async () => { throw cause; }) as unknown as typeof globalThis.fetch,
+      });
+
+      await expect(sdk.sendRequest('GET', '/sapi/mediaclip')).rejects.toMatchObject({
+        name: 'HTTPConnectionException',
+        statusCode: 0,
+        cause,
+      });
+    });
+
+    it('wraps a timeout (TimeoutError) in HTTPConnectionException', async () => {
+      const timeoutErr = Object.assign(new Error('The operation timed out'), { name: 'TimeoutError' });
+      const sdk = new Sdk('my-publication', new EmptyAuthenticator(), {
+        fetch: (async () => { throw timeoutErr; }) as unknown as typeof globalThis.fetch,
+      });
+
+      await expect(sdk.sendRequest('GET', '/sapi/mediaclip'))
+        .rejects.toThrow(/timed out after 30000ms/);
+    });
+  });
+});
