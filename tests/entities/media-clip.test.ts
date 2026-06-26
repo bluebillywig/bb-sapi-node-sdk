@@ -244,6 +244,36 @@ describe('MediaClip', () => {
       }
     });
 
+    it('sends a sized buffer body (not a stream) so S3 gets a Content-Length', async () => {
+      const { fetch, calls } = createMockFetch([{ status: 200 }]);
+      const sdk = new Sdk('my-publication', new EmptyAuthenticator(), { fetch });
+
+      const tmp = makeTempFile();
+      await writeFile(tmp.path, Buffer.alloc(10, 0x41));
+
+      try {
+        await sdk.mediaclip.executeUpload(tmp.path, {
+          chunks: 1,
+          presignedUrls: [
+            {
+              presignedUrl: 'https://s3.example.com/presigned-url',
+              chunkSize: 10,
+            },
+          ],
+        });
+
+        // A streamed body forces Transfer-Encoding: chunked (rejected by S3
+        // presigned PUT with 501) and needs duplex:'half' on Node 18+. The
+        // upload must send a buffer so fetch sets a Content-Length instead.
+        const body = calls[0].init?.body;
+        expect(Buffer.isBuffer(body)).toBe(true);
+        expect((body as Buffer).length).toBe(10);
+        expect(calls[0].init).not.toHaveProperty('duplex');
+      } finally {
+        await tmp.cleanup();
+      }
+    });
+
     it('should default chunkSize to file size when not specified', async () => {
       const { fetch, calls } = createMockFetch([{ status: 200 }]);
       const sdk = new Sdk('my-publication', new EmptyAuthenticator(), { fetch });
