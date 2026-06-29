@@ -1,6 +1,5 @@
 import { stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
-import { Readable } from 'node:stream';
 import { basename, extname } from 'node:path';
 import { Entity } from '../entity.js';
 import { SapiResponse } from '../response.js';
@@ -214,11 +213,21 @@ export class MediaClip extends Entity implements Listable, Gettable, Creatable<M
     const chunkSize = presignedUrl.chunkSize ?? fileStat.size;
     const offset = presignedUrl.offset ?? 0;
 
+    // Read the chunk into a buffer so the PUT carries a Content-Length and no
+    // chunked Transfer-Encoding. A streamed body sends Transfer-Encoding:
+    // chunked, which the S3 presigned PUT rejects (501 NotImplemented), and on
+    // Node 18+/undici a streamed body also requires duplex:'half'. Buffering a
+    // single bounded chunk (one multipart part, or a whole small single-chunk
+    // file) sidesteps both without holding more than one chunk in memory.
     const nodeStream = createReadStream(mediaClipPath, {
       start: offset,
       end: offset + chunkSize - 1,
     });
-    const body = Readable.toWeb(nodeStream) as ReadableStream;
+    const parts: Buffer[] = [];
+    for await (const part of nodeStream) {
+      parts.push(part as Buffer);
+    }
+    const body = Buffer.concat(parts);
 
     return this.sdk.sendRequest('PUT', presignedUrl.presignedUrl, { body });
   }
