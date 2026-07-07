@@ -47,7 +47,7 @@ export class Sdk {
   private readonly _baseUri: string;
   private readonly _fetch: typeof fetch;
   private readonly _entities: EntityMap;
-  private _publicationData: Record<string, unknown> | null = null;
+  private _publicationDataPromise: Promise<Record<string, unknown>> | null = null;
 
   constructor(publication: string, authenticator: Authenticator, options: SdkOptions = {}) {
     this.publication = publication;
@@ -182,11 +182,13 @@ export class Sdk {
    * Subsequent calls return the cached result.
    */
   async getPublicationData(): Promise<Record<string, unknown>> {
-    if (!this._publicationData) {
-      const response = await this.sendRequest('GET', '/sapi/publication');
-      response.assertOk();
-      this._publicationData = response.json<Record<string, unknown>>();
+    if (!this._publicationDataPromise) {
+      this._publicationDataPromise = this.sendRequest('GET', '/sapi/publication')
+        .then(response => {
+          response.assertOk();
+          return response.json<Record<string, unknown>>()!;
+        });
     }
-    return this._publicationData!;
+    return this._publicationDataPromise;
   }
 }

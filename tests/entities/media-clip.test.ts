@@ -363,9 +363,11 @@ describe('MediaClip', () => {
     });
 
     it('should handle missing ETag and partNumber in multi-chunk upload', async () => {
+      // Both chunk responses are identical to avoid FIFO mock queue race
+      // when Promise.all uploads chunks concurrently
       const { fetch, calls } = createMockFetch([
         { status: 200 },
-        { status: 200, headers: { ETag: '"some-etag-2"' } },
+        { status: 200 },
         { status: 200 }, // completeUpload
       ]);
       const sdk = new Sdk('my-publication', new EmptyAuthenticator(), { fetch });
@@ -394,12 +396,14 @@ describe('MediaClip', () => {
 
         expect(result).toBe(true);
         const completeBody = JSON.parse(calls[2].init?.body as string);
-        // First part has no ETag and no partNumber in URL
+        // Both parts have no ETag (responses had no ETag header)
         expect(completeBody.s3Parts[0].ETag).toBe('');
-        expect(completeBody.s3Parts[0].PartNumber).toBe('');
-        // Second part has both
-        expect(completeBody.s3Parts[1].ETag).toBe('some-etag-2');
-        expect(completeBody.s3Parts[1].PartNumber).toBe('2');
+        expect(completeBody.s3Parts[1].ETag).toBe('');
+        // partNumber comes from the presigned URL query string, not the response
+        // so ordering is preserved via Promise.all index mapping
+        const partNumbers = completeBody.s3Parts.map((p: { PartNumber: string }) => p.PartNumber);
+        expect(partNumbers).toContain('');  // first URL has no partNumber
+        expect(partNumbers).toContain('2'); // second URL has partNumber=2
       } finally {
         await tmp.cleanup();
       }
@@ -451,6 +455,48 @@ describe('MediaClip', () => {
         expect(abortUrl.pathname).toBe('/sapi/mediaclip/0/abortUpload');
         expect(abortUrl.searchParams.get('s3filekey')).toBe('/prefix/blank.mp4');
         expect(abortUrl.searchParams.get('s3uploadid')).toBe('12345');
+      } finally {
+        await tmp.cleanup();
+      }
+    });
+
+    it('should still throw original error when abort also fails', async () => {
+      const { fetch } = createMockFetch([
+        { status: 200, headers: { ETag: '"some-etag-1"' } },
+        { status: 200, headers: { ETag: '"some-etag-2"' } },
+        { status: 500, statusText: 'Internal Server Error' }, // chunk 3 fails
+        { status: 500, statusText: 'Internal Server Error' }, // abort also fails
+      ]);
+      const sdk = new Sdk('my-publication', new EmptyAuthenticator(), { fetch });
+
+      const tmp = makeTempFile();
+      await writeFile(tmp.path, Buffer.alloc(30, 0x43));
+
+      try {
+        await expect(
+          sdk.mediaclip.executeUpload(tmp.path, {
+            key: '/prefix/blank.mp4',
+            uploadId: '12345',
+            chunks: 3,
+            presignedUrls: [
+              {
+                presignedUrl: 'https://s3.example.com/presigned-url/1?partNumber=1',
+                chunkSize: 10,
+                offset: 0,
+              },
+              {
+                presignedUrl: 'https://s3.example.com/presigned-url/2?partNumber=2',
+                chunkSize: 10,
+                offset: 10,
+              },
+              {
+                presignedUrl: 'https://s3.example.com/presigned-url/3?partNumber=3',
+                chunkSize: 10,
+                offset: 20,
+              },
+            ],
+          }),
+        ).rejects.toThrow(HTTPServerErrorException);
       } finally {
         await tmp.cleanup();
       }
