@@ -19,6 +19,20 @@ describe('HOTP', () => {
     expect(token).toMatch(/^[0-9a-f]{40}$/);
   });
 
+  // Regression guard for PR #2 (ascii -> utf8 key encoding). A shared secret
+  // with non-ASCII characters must be HMAC'd over its UTF-8 bytes. The old
+  // `Buffer.from(key, 'ascii')` mangled high/multi-byte chars (7-bit mask),
+  // producing a different — and wrong — digest that would not match SAPI.
+  it('encodes non-ASCII secrets as UTF-8, not ASCII', () => {
+    const key = 'sëcrét-café-🔑';
+    const token = generateHotpByCounter(key, 42);
+
+    // Golden vector over the UTF-8 bytes of the key.
+    expect(token).toBe('dc631268d43d625047ec064f8579148d3d7da25e');
+    // The digest the buggy ASCII encoding produced — must never be returned.
+    expect(token).not.toBe('c4e7e1a05ab993c2ed5f21bfbe535e634092ef50');
+  });
+
   it('should generate by time with explicit timestamp', () => {
     const token = generateHotpByTime('my-secret', 120, 1000);
     // counter = floor(1000 / 120) = 8
