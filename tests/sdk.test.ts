@@ -145,6 +145,17 @@ describe('Sdk request hardening (18134)', () => {
 
       expect((calls[0].init?.headers as Record<string, string>).rpctoken).toBeUndefined();
     });
+
+    it('fails closed (no rpctoken) when the URL is unparseable', async () => {
+      const { fetch, calls } = createMockFetch([{ status: 200 }]);
+      const sdk = Sdk.withRPCTokenAuthentication('my-publication', 1, 'secret', { fetch });
+
+      // A malformed absolute URL makes origin resolution throw; the guard must
+      // treat it as cross-origin and withhold auth rather than leak the token.
+      await sdk.sendRequest('PUT', 'https://[');
+
+      expect((calls[0].init?.headers as Record<string, string>).rpctoken).toBeUndefined();
+    });
   });
 
   describe('streaming body', () => {
@@ -210,6 +221,19 @@ describe('Sdk request hardening (18134)', () => {
 
       await expect(sdk.sendRequest('GET', '/sapi/mediaclip'))
         .rejects.toThrow(/timed out after 30000ms/);
+    });
+
+    it('wraps a thrown non-Error value in HTTPConnectionException', async () => {
+      const sdk = new Sdk('my-publication', new EmptyAuthenticator(), {
+        // eslint-disable-next-line @typescript-eslint/no-throw-literal
+        fetch: (async () => { throw 'boom'; }) as unknown as typeof globalThis.fetch,
+      });
+
+      await expect(sdk.sendRequest('GET', '/sapi/mediaclip')).rejects.toMatchObject({
+        name: 'HTTPConnectionException',
+        statusCode: 0,
+        cause: 'boom',
+      });
     });
   });
 });
