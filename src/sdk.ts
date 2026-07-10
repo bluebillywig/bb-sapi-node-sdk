@@ -9,12 +9,25 @@ import { Playout } from './entities/playout.js';
 import { Subtitle } from './entities/subtitle.js';
 import { Thumbnail } from './entities/thumbnail.js';
 import type { SdkOptions } from './types/sdk-options.js';
+import { HTTPConnectionException } from './exceptions/http-connection-exception.js';
 
 export interface RequestOptions {
   query?: Record<string, string>;
   json?: unknown;
   body?: BodyInit | null;
   headers?: Record<string, string>;
+  /**
+   * Force-skip the SAPI auth headers for this request. By default auth is
+   * attached only to same-origin (SAPI) requests; cross-origin URLs (e.g. S3
+   * presigned upload/progress URLs) are never sent the rpctoken. Set this to
+   * also suppress auth on a same-origin request.
+   */
+  skipAuth?: boolean;
+  /**
+   * Per-request timeout in ms, overriding `SdkOptions.timeoutMs`. Pass `0` to
+   * disable the timeout for this request (used by streaming uploads).
+   */
+  timeoutMs?: number;
 }
 
 interface EntityMap {
@@ -46,6 +59,7 @@ export class Sdk {
   private readonly authenticator: Authenticator;
   private readonly _baseUri: string;
   private readonly _fetch: typeof fetch;
+  private readonly _timeoutMs: number;
   private readonly _entities: EntityMap;
   private _publicationDataPromise: Promise<Record<string, unknown>> | null = null;
 
@@ -54,7 +68,23 @@ export class Sdk {
     this.authenticator = authenticator;
     this._baseUri = options.baseUri ?? `https://${publication}.bbvms.com`;
     this._fetch = options.fetch ?? globalThis.fetch;
+    this._timeoutMs = options.timeoutMs ?? 30000;
     this._entities = createEntityProxy<EntityMap>(ENTITY_REGISTRATIONS, () => this);
+  }
+
+  /**
+   * True when `url` targets the same origin as the SAPI base URI. Used to gate
+   * auth-header attachment: cross-origin URLs (presigned S3/CloudFront upload
+   * and progress URLs) must never receive the rpctoken, or the credential ends
+   * up in CDN access logs. An unparseable URL is treated as cross-origin (fail
+   * closed — don't leak auth to something we can't reason about).
+   */
+  private _isSameOrigin(url: string): boolean {
+    try {
+      return new URL(url).origin === new URL(this._baseUri).origin;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -126,10 +156,8 @@ export class Sdk {
    * @param options - Optional query parameters, JSON body, raw body, or extra headers.
    */
   async sendRequest(method: string, path: string, options: RequestOptions = {}): Promise<SapiResponse> {
-    // Get auth headers
-    const authHeaders = this.authenticator.authenticate();
-
-    // Resolve URL: relative paths get resolved against baseUri
+    // Resolve URL first: relative paths get resolved against baseUri, and the
+    // resolved origin decides whether auth headers may be attached.
     let url: string;
     if (path.startsWith('http://') || path.startsWith('https://')) {
       url = path;
@@ -146,6 +174,13 @@ export class Sdk {
       url = urlObj.toString();
     }
 
+    // Attach SAPI auth ONLY to same-origin requests. Presigned S3/CloudFront
+    // upload + progress URLs are cross-origin; sending the rpctoken there leaks
+    // the credential into CDN access logs. `skipAuth` can also suppress it on a
+    // same-origin request.
+    const skipAuth = options.skipAuth ?? !this._isSameOrigin(url);
+    const authHeaders = skipAuth ? {} : this.authenticator.authenticate();
+
     // Build fetch options
     const headers: Record<string, string> = { ...authHeaders, ...options.headers };
     const fetchOptions: RequestInit = { method, headers };
@@ -155,9 +190,37 @@ export class Sdk {
       headers['Content-Type'] = 'application/json';
     } else if (options.body != null) {
       fetchOptions.body = options.body;
+      // Node's fetch requires `duplex: 'half'` to stream a request body; without
+      // it, a ReadableStream body throws "RequestInit: duplex option is required".
+      if (options.body instanceof ReadableStream) {
+        (fetchOptions as RequestInit & { duplex?: 'half' }).duplex = 'half';
+      }
     }
 
-    const fetchResponse = await this._fetch(url, fetchOptions);
+    // Per-request timeout (SdkOptions default, overridable; 0 disables). Without
+    // this a stalled connection hangs the call forever.
+    const timeoutMs = options.timeoutMs ?? this._timeoutMs;
+    if (timeoutMs > 0) {
+      fetchOptions.signal = AbortSignal.timeout(timeoutMs);
+    }
+
+    // Wrap transport errors (network failure / timeout) in the SDK exception
+    // hierarchy instead of letting a raw TypeError/TimeoutError escape.
+    let fetchResponse: Response;
+    try {
+      fetchResponse = await this._fetch(url, fetchOptions);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        throw new HTTPConnectionException(
+          `Request to ${url} timed out after ${timeoutMs}ms`,
+          { cause: error },
+        );
+      }
+      throw new HTTPConnectionException(
+        `Network request to ${url} failed: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
+    }
 
     // Collect response headers
     const responseHeaders: Record<string, string> = {};

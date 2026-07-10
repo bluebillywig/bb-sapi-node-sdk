@@ -233,7 +233,10 @@ export class MediaClip extends Entity implements Listable, Gettable, Creatable<M
     }
     const body = Buffer.concat(parts);
 
-    return this.sdk.sendRequest('PUT', presignedUrl.presignedUrl, { body });
+    // timeoutMs: 0 — a streaming upload's duration scales with file size, so the
+    // default request timeout would abort large uploads. The presigned URL is
+    // cross-origin, so sendRequest already omits the rpctoken (no auth leak to S3).
+    return this.sdk.sendRequest('PUT', presignedUrl.presignedUrl, { body, timeoutMs: 0 });
   }
 
   /**
