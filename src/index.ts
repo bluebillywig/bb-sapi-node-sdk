@@ -17,6 +17,16 @@ export { Playout } from './entities/playout.js';
 export { Subtitle } from './entities/subtitle.js';
 export { Thumbnail } from './entities/thumbnail.js';
 
+// Search
+export { FilterSet } from './search/filter-set.js';
+export type {
+  Filter,
+  FilterGroup,
+  FilterOperator,
+  FilterSetData,
+  SearchRequestEnvelope,
+} from './search/filter-set.js';
+
 // Exceptions
 export { HTTPRequestException } from './exceptions/http-request-exception.js';
 export { HTTPClientErrorException } from './exceptions/http-client-error-exception.js';

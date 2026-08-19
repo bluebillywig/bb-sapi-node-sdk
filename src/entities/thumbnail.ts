@@ -22,4 +22,38 @@ export class Thumbnail extends Entity {
     relativeImagePath = relativeImagePath.replace(/^\//, '');
     return `${this.sdk.baseUri}/image/${width}/${height}/${relativeImagePath}`;
   }
+
+  /**
+   * Absolute URL of a media clip's poster image.
+   *
+   * Use this rather than building a URL from the clip payload. A clip's `src` is
+   * its SOURCE MEDIA file, so `defaultMediaAssetPath + clip.src` yields a link
+   * to a .mov — the service says as much, replying
+   * "Invalid src mime type: video/quicktime". That mistake shows up as a grid
+   * full of broken images.
+   *
+   * `'default'` is accepted for either dimension and lets the service choose.
+   *
+   * A draft (unpublished) clip's poster is not public. Pass an RPC token minted
+   * from the READ-ONLY key — never the write key, because this URL ends up in
+   * page source — to see those.
+   */
+  getMediaClipPosterPath(
+    mediaClipId: number | string,
+    width: number | 'default' = 'default',
+    height: number | 'default' = 'default',
+    rpcToken?: string,
+  ): string {
+    const dimension = (value: number | 'default'): string =>
+      typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < 100000
+        ? String(value)
+        : 'default';
+
+    const url =
+      `${this.sdk.baseUri}/mediaclip/${encodeURIComponent(String(mediaClipId))}` +
+      `/spthumbnail/${dimension(width)}/${dimension(height)}.webp`;
+
+    return rpcToken ? `${url}?useSession=true&rpctoken=${encodeURIComponent(rpcToken)}` : url;
+  }
+
 }
