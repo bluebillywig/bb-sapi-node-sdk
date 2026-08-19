@@ -88,6 +88,24 @@ describe('FilterSet', () => {
     expect(FilterSet.from({ type: 'SearchRequest', filterSet: groups }).toArray()).toEqual(groups);
     expect(FilterSet.from(groups).toArray()).toEqual(groups);
   });
+
+  it('serialises through JSON.stringify as the wire format', () => {
+    // toJSON() is what makes `JSON.stringify(filterSet)` work, which is how a
+    // caller embedding a filterset in a larger body will reach for it.
+    const filterSet = FilterSet.create().where('status', 'is', 'published');
+
+    expect(JSON.stringify({ filterset: filterSet })).toBe(
+      '{"filterset":[{"filters":[{"field":"status","operator":"is","value":"published"}]}]}',
+    );
+    expect(filterSet.toJSON()).toEqual(filterSet.toArray());
+  });
+
+  it('treats an envelope with no groups as empty', () => {
+    expect(
+      FilterSet.from({ type: 'SearchRequest' } as unknown as { type: 'SearchRequest'; filterSet: [] })
+        .isEmpty(),
+    ).toBe(true);
+  });
 });
 
 describe('MediaClip.search', () => {
