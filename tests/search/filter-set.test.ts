@@ -59,11 +59,64 @@ describe('FilterSet', () => {
     expect(FilterSet.create().where('status', 'is').isEmpty()).toBe(true);
   });
 
-  it('keeps presence operators, which are meaningful without a value', () => {
+  it('sends the placeholder the backend requires for presence operators', () => {
+    // The backend's compiler skips ANY filter whose value is empty — presence
+    // tests included — so a bare isEmpty silently never fires (verified live:
+    // it returned the full unfiltered publication). OVP6 sends '*' with the
+    // comment "backend needs a value to work"; the SDK must do the same.
     const filterSet = FilterSet.create().where('author', 'isEmpty');
 
     expect(filterSet.isEmpty()).toBe(false);
-    expect(filterSet.toArray()[0].filters[0]).not.toHaveProperty('value');
+    expect(filterSet.toArray()[0].filters[0].value).toBe('*');
+  });
+
+  it('lets the placeholder override whatever value a caller supplied', () => {
+    expect(
+      FilterSet.create().where('author', 'isNotEmpty', 'anything').toArray()[0].filters[0].value,
+    ).toBe('*');
+  });
+
+  it('normalises numbers and booleans to the strings the backend understands', () => {
+    // Verified live: a JSON number works, but a JSON boolean gets mangled into
+    // "1" by the backend and matches NOTHING (hasInteractivity true as a
+    // boolean returned 0 results; as the string 'true', 868). Previously these
+    // values were silently DROPPED here, which returned the full result set —
+    // the exact failure class this SDK exists to remove.
+    expect(
+      FilterSet.create().where('views', 'isGreaterThan', 100).toArray()[0].filters[0].value,
+    ).toBe('100');
+    expect(
+      FilterSet.create().where('hasInteractivity', 'is', true).toArray()[0].filters[0].value,
+    ).toBe('true');
+    expect(
+      FilterSet.create().where('isImported', 'is', false).toArray()[0].filters[0].value,
+    ).toBe('false');
+    expect(
+      FilterSet.create().where('views', 'isAnyOf', [1, 2.5, true]).toArray()[0].filters[0].value,
+    ).toEqual(['1', '2.5', 'true']);
+  });
+
+  it('drops non-scalar array members instead of serialising garbage', () => {
+    const groups = [
+      {
+        filters: [
+          { field: 'status', operator: 'is' as const, value: ['published', { nested: true }] },
+        ],
+      },
+    ];
+
+    expect(
+      FilterSet.from(groups as never).toArray()[0].filters[0].value,
+    ).toEqual(['published']);
+  });
+
+  it('skips a group without a filters array instead of crashing', () => {
+    // from() ingests external JSON; a malformed group is junk, not a TypeError.
+    const junk = [{ notFilters: true }, { filters: [{ field: 'status', operator: 'is', value: 'published' }] }];
+
+    expect(FilterSet.from(junk as never).toArray()).toEqual([
+      { filters: [{ field: 'status', operator: 'is', value: 'published' }] },
+    ]);
   });
 
   it('drops a group left with no filters', () => {

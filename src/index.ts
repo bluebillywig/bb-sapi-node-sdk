@@ -23,7 +23,9 @@ export type {
   Filter,
   FilterGroup,
   FilterOperator,
+  FilterScalar,
   FilterSetData,
+  FilterValue,
   SearchRequestEnvelope,
 } from './search/filter-set.js';
 
