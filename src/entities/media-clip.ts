@@ -3,6 +3,7 @@ import { createReadStream } from 'node:fs';
 import { basename, extname } from 'node:path';
 import { Entity } from '../entity.js';
 import { SapiResponse } from '../response.js';
+import { FilterSet } from '../search/filter-set.js';
 import type { Listable } from '../contracts/listable.js';
 import type { Gettable } from '../contracts/gettable.js';
 import type { Creatable } from '../contracts/creatable.js';
@@ -62,6 +63,49 @@ function getMimeType(filePath: string): string {
 }
 
 export class MediaClip extends Entity implements Listable, Gettable, Creatable<MediaClipProps>, Updatable<MediaClipProps>, Deletable {
+  /**
+   * Search media clips using a filterset.
+   *
+   * The filtered counterpart to {@link list}, which can only page and sort. A
+   * filterset is the same structure the OVP builds in its filter UI, so a search
+   * moves between the OVP, the API and this SDK unchanged.
+   *
+   *     const filterSet = FilterSet.create()
+   *       .where('status', 'is', 'published')
+   *       .where('title', 'contains', 'koert');
+   *
+   *     await sdk.mediaclip.search(filterSet);
+   *
+   * The filterset goes over the wire as JSON and SAPI compiles it, exactly as
+   * the OVP does. It is deliberately not compiled here: that would be a second
+   * implementation of semantics the server owns, and a filter SAPI cannot read
+   * is ignored silently — HTTP 200, with neither `numfound` nor `items`.
+   *
+   * @param filterSet Groups are AND-ed, filters within a group OR-ed.
+   * @param filterQueries Raw Solr filters, for the rare thing a filterset cannot
+   *   express. NOTE the encoding: these go out as `fq[0]=`; SAPI ignores a
+   *   repeated `fq=` and a nested `fq[][0]=`, in both cases without an error.
+   */
+  async search(
+    filterSet: FilterSet,
+    limit: number = 15,
+    offset: number = 0,
+    sort: string = 'createddate desc',
+    query: string = '*',
+    filterQueries: string[] = [],
+  ): Promise<SapiResponse> {
+    const params: Record<string, string> = buildQuery({ q: query, limit, offset, sort });
+
+    if (!filterSet.isEmpty()) {
+      params.filterset = filterSet.toString();
+    }
+    filterQueries.forEach((filterQuery, index) => {
+      params[`fq[${index}]`] = filterQuery;
+    });
+
+    return this.sdk.sendRequest('GET', '/sapi/mediaclip', { query: params });
+  }
+
   async list(
     limit: number = 15,
     offset: number = 0,
