@@ -20,28 +20,59 @@
  *    and returns numfound=0 — a typo'd field name looks like an empty library.
  */
 
-/** Operators SAPI understands. */
-export type FilterOperator =
-  | 'is'
-  | 'isNot'
-  | 'isAnyOf'
-  | 'isNotAnyOf'
-  | 'isEmpty'
-  | 'isNotEmpty'
-  | 'contains'
-  | 'containsAnyOf'
-  | 'containsAllOf'
-  | 'doesNotContain'
-  | 'doesNotContainAnyOf'
-  | 'isBefore'
-  | 'isAfter'
-  | 'isSmallerThan'
-  | 'isGreaterThan'
-  | 'isInTheLast'
-  | 'isNotInTheLast';
+/**
+ * Operators SAPI understands.
+ *
+ * The runtime list is the source of truth and `FilterOperator` is derived from
+ * it, so the type and the check below cannot drift apart. The strings match
+ * what OVP6 puts in a filterset and what formatengine's
+ * `SearchRequestHelper::constructSolrSearchParameter()` switches on.
+ */
+export const FILTER_OPERATORS = [
+  'is',
+  'isNot',
+  'isAnyOf',
+  'isNotAnyOf',
+  'isEmpty',
+  'isNotEmpty',
+  'contains',
+  'containsAnyOf',
+  'containsAllOf',
+  'doesNotContain',
+  'doesNotContainAnyOf',
+  'isBefore',
+  'isAfter',
+  'isSmallerThan',
+  'isGreaterThan',
+  'isInTheLast',
+  'isNotInTheLast',
+] as const;
+
+export type FilterOperator = (typeof FILTER_OPERATORS)[number];
+
+const KNOWN_OPERATORS: ReadonlySet<string> = new Set(FILTER_OPERATORS);
 
 /** Operators that test presence, so they are meaningful without a value. */
 const VALUELESS_OPERATORS: ReadonlySet<string> = new Set(['isEmpty', 'isNotEmpty']);
+
+/**
+ * `FilterOperator` is erased at compile time, so it protects the builder but
+ * nothing that arrives at runtime — and an operator SAPI cannot read is not an
+ * error there: it is ignored, and the answer is HTTP 200 with neither
+ * `numfound` nor `items`, indistinguishable from an empty library. That is the
+ * exact failure this module exists to remove, so an unknown operator throws
+ * here instead of going over the wire. Matches the PHP sibling, which rejects
+ * one with InvalidArgumentException.
+ */
+function assertKnownOperator(operator: unknown, where: string): asserts operator is FilterOperator {
+  if (typeof operator !== 'string' || !KNOWN_OPERATORS.has(operator)) {
+    throw new TypeError(
+      `${where}: unknown filter operator ${JSON.stringify(operator)}. ` +
+        `FilterOperator mirrors the operators the OVP/formatengine understand — ` +
+        `extend FILTER_OPERATORS if a new one has been added. Known: ${FILTER_OPERATORS.join(', ')}.`,
+    );
+  }
+}
 
 /**
  * One value in a filter. Numbers and booleans are accepted and normalised to
@@ -120,18 +151,45 @@ export class FilterSet {
    * sends.
    */
   static from(filterSet: FilterSetData | SearchRequestEnvelope): FilterSet {
-    const groups = Array.isArray(filterSet) ? filterSet : filterSet.filterSet;
+    const groups = Array.isArray(filterSet) ? filterSet : filterSet?.filterSet;
+    const ingested = Array.isArray(groups) ? groups : [];
 
-    return new FilterSet(groups ?? []);
+    // The ingestion boundary: this data comes from the OVP `SearchRequest`
+    // envelope, an Automations payload or a stored filterset, none of which the
+    // type checker has seen. Validate the operators here rather than letting an
+    // unreadable filter reach SAPI.
+    ingested.forEach((group, groupIndex) => {
+      const filters = Array.isArray(group?.filters) ? group.filters : [];
+      filters.forEach((filter, filterIndex) => {
+        assertKnownOperator(
+          (filter as Filter | undefined)?.operator,
+          `FilterSet.from(): group ${groupIndex}, filter ${filterIndex}`,
+        );
+      });
+    });
+
+    return new FilterSet(ingested);
   }
 
-  /** Add a condition as its own group, so it is AND-ed with the rest. */
-  where(field: string, operator: FilterOperator, value?: string | string[], type?: string): FilterSet {
+  /**
+   * Add a condition as its own group, so it is AND-ed with the rest.
+   *
+   * `value` is a FilterValue, not just strings: numbers and booleans are the
+   * cases normalisation exists for, and narrowing them out here would make the
+   * documented fluent form — `.where('views', 'isGreaterThan', 100)` — a
+   * compile error while `andGroup()` accepted it.
+   */
+  where(field: string, operator: FilterOperator, value?: FilterValue, type?: string): FilterSet {
     return this.andGroup({ field, operator, value, type });
   }
 
   /** Add several conditions as one group, so they are OR-ed with each other. */
   andGroup(...filters: Filter[]): FilterSet {
+    // Guards the untyped-JS caller; a typed one is already stopped by the compiler.
+    filters.forEach((filter, index) => {
+      assertKnownOperator(filter?.operator, `FilterSet.andGroup(): filter ${index}`);
+    });
+
     return new FilterSet([...this.groups, { filters }]);
   }
 

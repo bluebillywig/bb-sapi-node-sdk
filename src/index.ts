@@ -18,7 +18,7 @@ export { Subtitle } from './entities/subtitle.js';
 export { Thumbnail } from './entities/thumbnail.js';
 
 // Search
-export { FilterSet } from './search/filter-set.js';
+export { FilterSet, FILTER_OPERATORS } from './search/filter-set.js';
 export type {
   Filter,
   FilterGroup,

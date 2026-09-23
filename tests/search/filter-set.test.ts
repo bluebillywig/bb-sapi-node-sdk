@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FilterSet } from '../../src/search/filter-set.js';
+import { FilterSet, FILTER_OPERATORS } from '../../src/search/filter-set.js';
 import { Sdk } from '../../src/sdk.js';
 import { EmptyAuthenticator } from '../../src/authentication/empty-authenticator.js';
 import { createMockFetch } from '../helpers/mock-fetch.js';
@@ -158,6 +158,53 @@ describe('FilterSet', () => {
       FilterSet.from({ type: 'SearchRequest' } as unknown as { type: 'SearchRequest'; filterSet: [] })
         .isEmpty(),
     ).toBe(true);
+  });
+
+  it('accepts numbers and booleans through where(), not only strings', () => {
+    // A TYPE regression guard as much as a runtime one: where() once declared
+    // `value?: string | string[]`, so these three calls were a compile error
+    // while andGroup() accepted them — the normalisation above was unreachable
+    // through the primary documented API. It only stayed invisible because the
+    // tests were outside the typecheck; tsconfig.typecheck.json now covers them,
+    // so a narrowing of where() fails `npm run typecheck` here.
+    expect(FilterSet.create().where('views', 'isGreaterThan', 100).toArray()[0].filters[0].value).toBe(
+      '100',
+    );
+    expect(
+      FilterSet.create().where('hasInteractivity', 'is', true).toArray()[0].filters[0].value,
+    ).toBe('true');
+    expect(
+      FilterSet.create().where('views', 'isAnyOf', [1, 2.5, true]).toArray()[0].filters[0].value,
+    ).toEqual(['1', '2.5', 'true']);
+  });
+
+  it('rejects an unknown operator at the ingestion boundary', () => {
+    // FilterOperator is erased at runtime, so from() is unprotected: an
+    // ingested 'equals' (a plausible typo for 'is') reaches SAPI, which cannot
+    // read it, ignores it and answers HTTP 200 with an empty envelope —
+    // indistinguishable from an empty library. Throw instead. The PHP sibling
+    // throws InvalidArgumentException on the same input.
+    const junk = [{ filters: [{ field: 'status', operator: 'equals', value: 'published' }] }];
+
+    expect(() => FilterSet.from(junk as never)).toThrow(/unknown filter operator "equals"/);
+    expect(() => FilterSet.from([{ filters: [{ field: 'status' }] }] as never)).toThrow(TypeError);
+  });
+
+  it('rejects an unknown operator from an untyped builder caller', () => {
+    expect(() =>
+      FilterSet.create().andGroup({ field: 'status', operator: 'conatins' } as never),
+    ).toThrow(/unknown filter operator/);
+  });
+
+  it('accepts every operator it advertises', () => {
+    // Pins type and runtime check to one list: a new operator added to
+    // FILTER_OPERATORS is accepted by from(), and one removed stops being.
+    expect(FILTER_OPERATORS).toHaveLength(17);
+    for (const operator of FILTER_OPERATORS) {
+      expect(() =>
+        FilterSet.from([{ filters: [{ field: 'status', operator, value: 'x' }] }]),
+      ).not.toThrow();
+    }
   });
 });
 

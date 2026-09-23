@@ -1,0 +1,14 @@
+{
+  // The build tsconfig compiles `src` into `dist`, so it cannot also cover the
+  // tests. This one type-checks both: without it the test suite is never seen by
+  // tsc, and a type defect on the public API stays invisible however many tests
+  // exercise it at runtime (that is how `where()` came to reject the numbers and
+  // booleans the whole normalisation path exists for).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": ["src", "tests"],
+  "exclude": ["node_modules", "dist"]
+}
