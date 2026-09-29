@@ -34,4 +34,30 @@ describe('Thumbnail', () => {
       'Given height is lower than 0.',
     );
   });
+
+  it('builds a clip poster URL from the OVP thumbnail route', () => {
+    const sdk = new Sdk('my-publication', new EmptyAuthenticator());
+
+    expect(sdk.thumbnail.getMediaClipPosterPath(1234, 320, 180)).toBe(
+      'https://my-publication.bbvms.com/mediaclip/1234/spthumbnail/320/180.webp',
+    );
+  });
+
+  it('lets the service choose the dimensions by default', () => {
+    const sdk = new Sdk('my-publication', new EmptyAuthenticator());
+
+    expect(sdk.thumbnail.getMediaClipPosterPath(1234)).toBe(
+      'https://my-publication.bbvms.com/mediaclip/1234/spthumbnail/default/default.webp',
+    );
+  });
+
+  it('carries an RPC token so draft clips resolve', () => {
+    const sdk = new Sdk('my-publication', new EmptyAuthenticator());
+
+    expect(sdk.thumbnail.getMediaClipPosterPath(1234, 'default', 'default', '12-345678')).toBe(
+      'https://my-publication.bbvms.com/mediaclip/1234/spthumbnail/default/default.webp' +
+        '?useSession=true&rpctoken=12-345678',
+    );
+  });
+
 });
